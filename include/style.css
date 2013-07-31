@@ -1,0 +1,35 @@
+// adapted from PtP
+
+.nobr {
+    white-space: nowrap;
+}
+table.mediainfo {
+	border: thin solid #c6c8cd;
+    margin: 0;
+	margin-top: .2em;
+	margin-bottom: 1em;
+}
+table.mediainfo tr {
+    vertical-align: top;
+	background-color: #e4e6eb;
+}
+table.mediainfo table {
+    border-color: #777;
+    border-style: dashed none none;
+    border-width: thin medium medium;
+    margin-left: .8em;
+    margin-right: .8em;
+}
+table.mediainfo table caption {
+    font-weight: bold;
+}
+table.mediainfo table td {
+    text-align: left;
+}
+div.mediainfo {
+	margin: 0.5em;
+	padding: 1em;
+	padding-bottom: 0;
+	border: thin dashed #e4e6eb;
+	font-family: monospace;
+}
