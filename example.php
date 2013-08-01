@@ -1,6 +1,5 @@
 <?
 include "include/mediainfo.php";
-include "include/sanitize.php";
 
 $test = "
 text outside the log block won't be affected.
@@ -76,7 +75,7 @@ text outside the log block won't be affected.
 </head>
 <body>
 
-<? echo parseMediaInfo($test); ?>
+<? echo miparse::parse($test); ?>
 
 </body>
 </html>
