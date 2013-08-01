@@ -378,6 +378,13 @@ class miparse {
 	 * @return str sanitized output
 	*/
 	public static function sanitizeHTML (&$value) {
+		
+		if (is_array($value)){
+			foreach ($value as $k => $v){
+				$value[$k] = self::sanitizeHTML($v);
+			}
+		}
+		
 		return htmlentities((string) $value, ENT_QUOTES, 'ISO-8859-1');
 	}
 
