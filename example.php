@@ -8,7 +8,7 @@ click the filename to see the full log:
 
 General
 Complete name                            : c:\path\will\be\hidden\SOCPA - The Movie.avi
-Format                                   : AVI
+Format                                   : AVI <script>alert('xss test');</script>
 Format/Info                              : Audio Video Interleave
 File size                                : 700 MiB
 Duration                                 : 1h 0mn
@@ -64,6 +64,9 @@ Writing library                          : LAME3.98r
 Encoding settings                        : -m j -V 4 -q 2 -lowpass 18.6 -b 192
 
 text outside the log block won't be affected.
+
+<script>alert('xss test');</script>
+
 ";
 
 ?>
