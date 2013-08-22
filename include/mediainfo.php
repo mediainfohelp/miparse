@@ -330,8 +330,8 @@ class miparse {
 			$ar = $ar[0];
 		}
 		
-		if ( round($w/$h,3) == round($ar,3) ) {
-			return; // not anamorphic, return null
+		if ( round($w/$h,1) == round($ar,1) ) {
+			return; // source dimensions match/are close to specified aspect ratio, return null
 		}
 		
 		$calch = intval($w / $ar);
