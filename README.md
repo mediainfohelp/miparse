@@ -3,6 +3,6 @@ miparse
 
 mediainfo log parser
 
-produces a HTML table layout with the original log a click away.
+outputs a HTML table + the original log hidden behind a javascript toggle
 
 with thanks to PtP, ptpuploader and Owncloud
