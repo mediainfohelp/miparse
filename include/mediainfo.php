@@ -221,7 +221,7 @@ class miparse {
 	 * @param int $audionum
 	 * @return str
 	*/
-	private function addHTML($string, $mi, $audionum) {
+	private static function addHTML($string, $mi, $audionum) {
 
 		$mi['codec'] = self::computeCodec($mi);
 		
@@ -316,7 +316,7 @@ class miparse {
 	 * @param array $mi pre-sanitized
 	 * @return str HTML, or null if not anamorphic
 	*/
-	private function displayDimensions($mi) {
+	private static function displayDimensions($mi) {
 		$w = intval($mi['width']);
 		$h = intval($mi['height']);
 		if ($h < 1 || $w < 1 || !$mi['aspectratio']) {
@@ -354,7 +354,7 @@ class miparse {
 	 * @param str $string
 	 * @return str
 	*/
-	private function parseSize($string) {
+	private static function parseSize($string) {
 		return str_replace(array('pixels', ' '), null, $string);
 	}
 
@@ -363,7 +363,7 @@ class miparse {
 	 * @param array $mi
 	 * @return str codec
 	*/
-	private function computeCodec(&$mi) {
+	private static function computeCodec(&$mi) {
 		switch (strtolower($mi['videoformat'])) {
 			case "mpeg video":
 				switch (strtolower($mi['videoformatversion'])) {
@@ -403,7 +403,7 @@ class miparse {
 	 * @param str $string
 	 * @return str
 	*/
-	private function stripPath($string) {
+	private static function stripPath($string) {
 		$string = str_replace("\\", "/", $string);
 		$path_parts = pathinfo($string);
 		return $path_parts['basename'];
@@ -415,7 +415,7 @@ class miparse {
 	 * @param str $value
 	 * @return str sanitized output
 	*/
-	public static function sanitizeHTML (&$value) {
+	private static function sanitizeHTML (&$value) {
 		
 		if (is_array($value)){
 			foreach ($value as $k => $v){
