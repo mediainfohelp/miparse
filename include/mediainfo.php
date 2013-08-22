@@ -294,7 +294,7 @@ class miparse {
 		. '</td></tr></tbody></table></td>'
 		. '<td><table class="nobr"><caption>Video</caption><tbody>'
 		. '<tr><td>Codec:&nbsp;</td><td>' . $mi['codec']
-		. '</td></tr><tr><td>Resolution:&nbsp;</td><td>' . $mi['width'] . 'x' . $mi['height']
+		. '</td></tr><tr><td>Resolution:&nbsp;</td><td>' . $mi['width'] . 'x' . $mi['height'] . "&nbsp;" . self::displayDimensions($mi)
 		. '</td></tr><tr><td>Aspect&nbsp;ratio:&nbsp;&nbsp;</td><td>' . $mi['aspectratio']
 		. '</td></tr><tr><td>Frame&nbsp;rate:&nbsp;</td><td>' . $mi['framerate']
 		. '</td></tr><tr><td>Bit&nbsp;rate:&nbsp;</td><td>' . $mi['bitrate']
@@ -309,6 +309,44 @@ class miparse {
 		$table .= '</tbody></table></td></tr></tbody></table>';
 		
 		return $midiv_start . $string . $midiv_end . $table;
+	}
+
+	/**
+	 * calculates approximate display dimensions of anamorphic video
+	 * @param array $mi pre-sanitized
+	 * @return str HTML, or null if not anamorphic
+	*/
+	private function displayDimensions($mi) {
+		$w = intval($mi['width']);
+		$h = intval($mi['height']);
+		if ($h < 1 || $w < 1 || !$mi['aspectratio']) {
+			return; // bad input
+		}
+
+		$ar = explode(":", $mi['aspectratio']);
+		if (count($ar) > 1) {
+			$ar = $ar[0] / $ar[1]; // e.g. 4:3 becomes 1.333...
+		} else {
+			$ar = $ar[0];
+		}
+		
+		if ( round($w/$h,3) == round($ar,3) ) {
+			return; // not anamorphic, return null
+		}
+		
+		$calch = intval($w / $ar);
+		$calcw = intval($h * $ar);
+		$calcOutput = $calcw . "x" . $h;
+		$calcAlt = $w . "x" . $calch;
+		
+		if ( ($w * $calch) > ($calcw * $h) ) { // pick greater overall size
+			$tmp = $calcOutput;
+			$calcOutput = $calcAlt;
+			$calcAlt = $tmp;
+		}
+		
+		return "~&gt;&nbsp;<span title='Alternatively "
+			. $calcAlt . "'>" . $calcOutput . "</span>";
 	}
 
 	/**
@@ -365,7 +403,7 @@ class miparse {
 	 * @param str $string
 	 * @return str
 	*/
-	private function stripPath($string) { // remove filepath
+	private function stripPath($string) {
 		$string = str_replace("\\", "/", $string);
 		$path_parts = pathinfo($string);
 		return $path_parts['basename'];
