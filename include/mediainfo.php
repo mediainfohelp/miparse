@@ -314,7 +314,7 @@ class miparse {
 	/**
 	 * calculates approximate display dimensions of anamorphic video
 	 * @param array $mi pre-sanitized
-	 * @return str HTML, or null if not anamorphic
+	 * @return str HTML or null
 	*/
 	private static function displayDimensions($mi) {
 		$w = intval($mi['width']);
@@ -329,24 +329,28 @@ class miparse {
 		} else {
 			$ar = $ar[0];
 		}
+
+		$calcw = intval($h * $ar);
+		$calch = intval($w / $ar);
+		$output = $calcw . "x" . $h;
+		$outputAlt = $w . "x" . $calch;
 		
-		if ( round($w/$h,1) == round($ar,1) ) {
-			return; // source dimensions match/are close to specified aspect ratio, return null
+		$chk = 27;
+		$chkw = $calcw > ($w-$chk) && $calcw < ($w+$chk);
+		$chkh = $calch > ($h-$chk) && $calch < ($h+$chk);
+		if ($chkw && $chkh) {
+			// calculated dimensions are +/-$chk pixels of source dimensions, return null
+			return; 
 		}
 		
-		$calch = intval($w / $ar);
-		$calcw = intval($h * $ar);
-		$calcOutput = $calcw . "x" . $h;
-		$calcAlt = $w . "x" . $calch;
-		
 		if ( ($w * $calch) > ($calcw * $h) ) { // pick greater overall size
-			$tmp = $calcOutput;
-			$calcOutput = $calcAlt;
-			$calcAlt = $tmp;
+			$tmp = $output;
+			$output = $outputAlt;
+			$outputAlt = $tmp;
 		}
 		
 		return "~&gt;&nbsp;<span title='Alternatively "
-			. $calcAlt . "'>" . $calcOutput . "</span>";
+			. $outputAlt . "'>" . $output . "</span>";
 	}
 
 	/**
