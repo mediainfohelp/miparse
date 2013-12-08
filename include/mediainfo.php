@@ -36,7 +36,7 @@ class miparse {
 		$anymi = false; // debug
 		
 		//regexes
-		$mistart="/^(?:general$|unique id|complete name)/i";
+		$mistart="/^(?:general$|unique id\s+:|complete name\s+:|format\s+:\s+(matroska|avi)$)/i";
 		$misection="/^(?:(?:video|audio|text|menu)(?:\s\#\d+?)*)$/i";
 		
 		// split on newlines
@@ -66,7 +66,7 @@ class miparse {
 			
 			if ($inmi && $insection && !strlen($line) == 0) {
 				// extract mi data
-				$array = explode(": ", $line);
+				$array = explode(":", $line, 2);
 				$property = strtolower(trim($array[0]));
 				$value = trim($array[1]);
 				if ($section === "general") {
@@ -322,8 +322,10 @@ class miparse {
 		if ($h < 1 || $w < 1 || !$mi['aspectratio']) {
 			return; // bad input
 		}
-
-		$ar = explode(":", $mi['aspectratio']);
+		
+		$ar = str_replace("/", ":", $mi['aspectratio']); // mediainfo sometimes uses / instead of :
+		
+		$ar = explode(":", $ar);
 		if (count($ar) > 1) {
 			$ar = $ar[0] / $ar[1]; // e.g. 4:3 becomes 1.333...
 		} else {
