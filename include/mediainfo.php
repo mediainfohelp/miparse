@@ -10,13 +10,16 @@ class miparse {
 		$string = trim($string);
 		$output = array();
 		$outputblock = 0; // counter
-
+		
+		/* false positive if "blank" lines have any spaces on them, disabling check for now.
+		
 		//if no blank lines, skip mi processing
 		if (stripos($string, "\n\n") === FALSE && stripos($string, "\r\n\r\n") === FALSE) {
 			$output[] = self::sanitizeHTML($string);
 			goto returnOutput;
 		}
-
+		*/
+		
 		// mediainfo data array
 		$mi = array();
 		$mi['audioformat'] = array();
