@@ -10,7 +10,7 @@ class miparse {
 		$string = trim($string);
 		$output = array();
 		$outputblock = 0; // counter
-		
+
 		/* false positive if "blank" lines have any spaces on them, disabling check for now.
 		
 		//if no blank lines, skip mi processing
@@ -39,7 +39,7 @@ class miparse {
 		$anymi = false; // debug
 		
 		//regexes
-		$mistart="/^(?:general$|unique id\s+:|complete name\s+:|format\s+:\s+(matroska|avi)$)/i";
+		$mistart="/^(?:general$|unique ?id(\/string)?\s+:|complete ?name\s+:|format\s+:\s+(matroska|avi)$)/i";
 		$misection="/^(?:(?:video|audio|text|menu)(?:\s\#\d+?)*)$/i";
 		
 		// split on newlines
@@ -71,10 +71,12 @@ class miparse {
 				// extract mi data
 				$array = explode(":", $line, 2);
 				$property = strtolower(trim($array[0]));
+				$property = preg_replace("#/string$#", "", $property);
 				$value = trim($array[1]);
 				if ($section === "general") {
 					switch ($property) {
 						case "complete name":
+						case "completename":
 							$mi['filename'] = self::stripPath($value);
 							$line = "Complete name : " . $mi['filename'];
 							break;
@@ -85,6 +87,7 @@ class miparse {
 							$mi['duration'] = $value;
 							break;
 						case "file size":
+						case "filesize":
 							$mi['filesize'] = $value;
 							break;
 					}
@@ -94,9 +97,11 @@ class miparse {
 							$mi['videoformat'] = $value;
 							break;
 						case "format version":
+						case "format_version":
 							$mi['videoformatversion'] = $value;
 							break;
 						case "codec id":
+						case "codecid":
 							$mi['codec'] = strtolower($value);
 							break;
 						case "width":
@@ -106,28 +111,36 @@ class miparse {
 							$mi['height'] = self::parseSize($value);
 							break;
 						case "writing library":
+						case "encoded_library":
 							$mi['writinglibrary'] = $value;
 							break;
 						case "frame rate mode":
+						case "framerate_mode":
 							$mi['frameratemode'] = $value;
 							break;
 						case "frame rate":
+						case "framerate":
 							// if variable this becomes Original frame rate
 							$mi['framerate'] = $value;
 							break;
 						case "display aspect ratio":
+						case "displayaspectratio":
 							$mi['aspectratio'] = $value;
 							break;
 						case "bit rate":
+						case "bitrate":
 							$mi['bitrate'] = $value;
 							break;
 						case "bit rate mode":
+						case "bitrate_mode": // this is from an Audio log, assuming it's the same for video TODO check!
 							$mi['bitratemode'] = $value;
 							break;
 						case "nominal bit rate":
+						case "bitrate_nominal":
 							$mi['nominalbitrate'] = $value;
 							break;
 						case "bits/(pixel*frame)":
+						case "bits-(pixel*frame)":
 							$mi['bpp'] = $value;
 							break;
 					}
@@ -137,6 +150,7 @@ class miparse {
 							$mi['audioformat'][$audionum] = $value;
 							break;
 						case "bit rate":
+						case "bitrate":
 							$mi['audiobitrate'][$audionum] = $value;
 							break;
 						case "channel(s)":
@@ -149,6 +163,7 @@ class miparse {
 							$mi['audiolang'][$audionum] = $value;
 							break;
 						case "format profile":
+						case "format_profile":
 							$mi['audioprofile'][$audionum] = $value;
 							break;
 					}
