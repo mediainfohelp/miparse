@@ -39,7 +39,7 @@ class miparse {
 		$anymi = false; // debug
 		
 		//regexes
-		$mistart="/^(?:general$|unique ?id(\/string)?\s+:|complete ?name\s+:|format\s+:\s+(matroska|avi)$)/i";
+		$mistart="/^(?:general$|unique ?id(\/string)?\s+:|complete ?name\s?:|format\s+:\s+(matroska|avi)$)/i";
 		$misection="/^(?:(?:video|audio|text|menu)(?:\s\#\d+?)*)$/i";
 		
 		// split on newlines
@@ -73,6 +73,12 @@ class miparse {
 				$property = strtolower(trim($array[0]));
 				$property = preg_replace("#/string$#", "", $property);
 				$value = trim($array[1]);
+				
+				if (strtoupper($array[0]) == $array[0]) {
+					// ignore ALL CAPS tags, as set by mkvmerge 7
+					$property = "";
+				}
+				
 				if ($section === "general") {
 					switch ($property) {
 						case "complete name":
@@ -132,7 +138,7 @@ class miparse {
 							$mi['bitrate'] = $value;
 							break;
 						case "bit rate mode":
-						case "bitrate_mode": // this is from an Audio log, assuming it's the same for video TODO check!
+						case "bitrate_mode":
 							$mi['bitratemode'] = $value;
 							break;
 						case "nominal bit rate":
@@ -142,6 +148,10 @@ class miparse {
 						case "bits/(pixel*frame)":
 						case "bits-(pixel*frame)":
 							$mi['bpp'] = $value;
+							break;
+						case "bit depth":
+						case "bitdepth":
+							$mi['bitdepth'] = $value;
 							break;
 					}
 				} else if (stripos($section, "audio") > -1) {
@@ -242,6 +252,9 @@ class miparse {
 	private static function addHTML($string, $mi, $audionum) {
 
 		$mi['codec'] = self::computeCodec($mi);
+		if (stripos($mi['bitdepth'], "10 bit") !== FALSE) {
+			$mi['codec'] .= " (10-bit)";
+		}
 		
 		$miaudio = array();
 		for ($i=1; $i < $audionum+1; $i++) {
@@ -436,8 +449,8 @@ class miparse {
 
 	/**
 	 * Function to sanitize user input
-	 * @param str $value
-	 * @return str sanitized output
+	 * @param mixed $value str or array
+	 * @return mixed sanitized output
 	*/
 	private static function sanitizeHTML (&$value) {
 		
