@@ -1,45 +1,42 @@
 <?
 class miparse {
 
+	// options
+	public	$checkEncodingSettings = FALSE;
+	public	$characterSet = 'ISO-8859-1';  // hopefully your site is UTF-8, if so change this default
+
+	// outputs
+	public 	$filename = 'Mediainfo log';
+	public	$sanitizedLog = '';
+	public	$audio = array();
+	public	$logs = array(); // will contain an object for each mediainfo log processed
+
+	// internal use
+	private $hadBlankLine = FALSE; // only parse as a mediainfo log if it included a blank line
+	private $audionum = 0;
+	private $currentSection = ''; // tracks log section while parsing
+	
 	/**
-	 * Public interface for parsing mediainfo, returns HTML output
-	 * @param str $string
-	 * @return str 
+	 * Public interface for parsing text containing any amount of mediainfo logs
+	 * @param string $string	input text
+	 * 
+	 * @property-write string $output	final HTML output
+	 * @property-write array $logs	one object per log
 	*/
-	public static function parse($string) {
+	public function parse($string) {
+		
 		$string = trim($string);
 		$output = array();
 		$outputblock = 0; // counter
-
-		/* false positive if "blank" lines have any spaces on them, disabling check for now.
-		
-		//if no blank lines, skip mi processing
-		if (stripos($string, "\n\n") === FALSE && stripos($string, "\r\n\r\n") === FALSE) {
-			$output[] = self::sanitizeHTML($string);
-			goto returnOutput;
-		}
-		*/
-		
-		// mediainfo data array
-		$mi = array();
-		$mi['audioformat'] = array();
-		$mi['audiobitrate'] = array();
-		$mi['audiochannels'] = array();
-		$mi['audiolang'] = array();
-		$mi['audioprofile'] = array();
-		$mi['audiotitle'] = array();
-		$mi['filename'] = "Mediainfo log";
+		$logcount = 0;
 		
 		//flags
-		$inmi = false; // currently processing MI block
-		$insection = false; // currently in a MI section
-		$miHadBlankLine = false; // MI block must have 1+ blanklines
-		$audionum = 0; // count audio tracks
-		$section=""; // current section name
+		$inmi = false; // currently in a mediainfo log
+		$insection = false; // currently in a mediainfo log section
 		$anymi = false; // debug
 		
 		//regexes
-		$mistart="/^(?:general$|unique ?id(\/string)?\s+:|complete ?name\s?:|format\s+:\s+(matroska|avi)$)/i";
+		$mistart="/^(?:general$|unique ?id(\/string)?\s*:|complete ?name\s*:|format\s*:\s*(matroska|avi|bdav)$)/i";
 		$misection="/^(?:(?:video|audio|text|menu)(?:\s\#\d+?)*)$/i";
 		
 		// split on newlines
@@ -57,175 +54,56 @@ class miparse {
 				continue;
 			}
 			
-			if (!$inmi) { // check if it's the start of a MI block
-				if (preg_match($mistart, $line)) {
+			if (!$inmi) { 
+				if (preg_match($mistart, $line)) { // start of a mediainfo log?
+					
+					$Log = new miparse;  // create an instance of the class
+					if ($this->checkEncodingSettings === TRUE) {
+						$Log->checkEncodingSettings = TRUE;
+					}
+					
 					$inmi = true;
 					$anymi = true;
 					$insection = true;
-					$section = "general";
+					$Log->currentSection = "general";
 					$outputblock++;
 				}
 			}
 			
 			if ($inmi && $insection && !strlen($line) == 0) {
-				// extract mi data
-				$array = explode(":", $line, 2);
-				$property = strtolower(trim($array[0]));
-				$property = preg_replace("#/string$#", "", $property);
-				$value = trim($array[1]);
-				
-				if (strtoupper($array[0]) == $array[0]) {
-					// ignore ALL CAPS tags, as set by mkvmerge 7
-					$property = "";
-				}
-				
-				if ($section === "general") {
-					switch ($property) {
-						case "complete name":
-						case "completename":
-							$mi['filename'] = self::stripPath($value);
-							$line = "Complete name : " . $mi['filename'];
-							break;
-						case "format":
-							$mi['generalformat'] = $value;
-							break;
-						case "duration":
-							$mi['duration'] = $value;
-							break;
-						case "file size":
-						case "filesize":
-							$mi['filesize'] = $value;
-							break;
-					}
-				} else if (stripos($section, "video") > -1) {
-					switch ($property) {
-						case "format":
-							$mi['videoformat'] = $value;
-							break;
-						case "format version":
-						case "format_version":
-							$mi['videoformatversion'] = $value;
-							break;
-						case "codec id":
-						case "codecid":
-							$mi['codec'] = strtolower($value);
-							break;
-						case "width":
-							$mi['width'] = self::parseSize($value);
-							break;
-						case "height":
-							$mi['height'] = self::parseSize($value);
-							break;
-						case "writing library":
-						case "encoded_library":
-							$mi['writinglibrary'] = $value;
-							break;
-						case "frame rate mode":
-						case "framerate_mode":
-							$mi['frameratemode'] = $value;
-							break;
-						case "frame rate":
-						case "framerate":
-							// if variable this becomes Original frame rate
-							$mi['framerate'] = $value;
-							break;
-						case "display aspect ratio":
-						case "displayaspectratio":
-							$mi['aspectratio'] = $value;
-							break;
-						case "bit rate":
-						case "bitrate":
-							$mi['bitrate'] = $value;
-							break;
-						case "bit rate mode":
-						case "bitrate_mode":
-							$mi['bitratemode'] = $value;
-							break;
-						case "nominal bit rate":
-						case "bitrate_nominal":
-							$mi['nominalbitrate'] = $value;
-							break;
-						case "bits/(pixel*frame)":
-						case "bits-(pixel*frame)":
-							$mi['bpp'] = $value;
-							break;
-						case "bit depth":
-						case "bitdepth":
-							$mi['bitdepth'] = $value;
-							break;
-					}
-				} else if (stripos($section, "audio") > -1) {
-					switch ($property) {
-						case "format":
-							$mi['audioformat'][$audionum] = $value;
-							break;
-						case "bit rate":
-						case "bitrate":
-							$mi['audiobitrate'][$audionum] = $value;
-							break;
-						case "channel(s)":
-							$mi['audiochannels'][$audionum] = $value;
-							break;
-						case "title":
-							$mi['audiotitle'][$audionum] = $value;
-							break;
-						case "language":
-							$mi['audiolang'][$audionum] = $value;
-							break;
-						case "format profile":
-						case "format_profile":
-							$mi['audioprofile'][$audionum] = $value;
-							break;
-					}
-				}
-				// not making use of subtitles info yet
-				/* else if (stripos($section, "text") > -1) {
-					switch ($property) {
-						case "language":
-						$misubs[] = $value;
-					}
-				}
-				*/
+				$line = $Log->parseProperties($line); // parse "property : value" pairs
 			}
 			
-			if ($inmi && !$insection) { // is it a section start?
-				if (preg_match($misection, $line)) {
+			if ($inmi && !$insection) { 
+				if (preg_match($misection, $line)) { // is it a section start?
 					$insection = true;
-					$section = $line;
-					if (stripos($section, "audio") > -1) {
-						$audionum++;
+					$Log->currentSection = $line;
+					if (stripos($Log->currentSection, "audio") > -1) {
+						$Log->audionum++;
 					}
 					if (strlen($prevline) == 0) {
-						$miHadBlankLine = true;
+						$Log->hadBlankLine = true;
 					}
 					goto outputLine;
 				}
 			}
 			
 			if ($inmi && !$insection && strlen($prevline) == 0) {
-				// end of MI block
+				// end of a mediainfo log
 				
-				if ($miHadBlankLine) {
-					$output[$outputblock] = self::addHTML($output[$outputblock], $mi, $audionum);
+				if ($Log->hadBlankLine) {
+					$Log->sanitizedLog = $output[$outputblock];
+					$output[$outputblock] = $Log->addHTML();
+					$this->logs[$logcount] = $Log; // store current $Log object in array
+					$logcount++;
 				}
+				$outputblock++;
 				
-				// reset in case of another mi block
-				$mi = array();
-				$mi['audioformat'] = array();
-				$mi['audiobitrate'] = array();
-				$mi['audiochannels'] = array();
-				$mi['audiolang'] = array();
-				$mi['audioprofile'] =  array();
-				$mi['audiotitle'] = array();
-				$mi['filename'] = "Mediainfo log";
 				// reset flags
 				$inmi = false;
 				$insection = false;
-				$miHadBlankLine = false;
-				$audionum = 0;
-				$section="";
-
-				$outputblock++;
+				$Log->currentSection='';
+				
 				goto beginning; // restart loop to process current line
 			}
 			
@@ -234,45 +112,172 @@ class miparse {
 			$output[$outputblock] .= self::sanitizeHTML($line) . "\n";
 		}
 		
-		if ($inmi && $miHadBlankLine) { // need to close mi block?
-			$output[$outputblock] = self::addHTML($output[$outputblock], $mi, $audionum);
-		}
-
-		returnOutput:
-		return str_replace("\n", "<br />\n", trim(implode("", $output)));
-	}
-
-	/**
-	 * Generates HTML from mediainfo input
-	 * @param str $string
-	 * @param array $mi
-	 * @param int $audionum
-	 * @return str
-	*/
-	private static function addHTML($string, $mi, $audionum) {
-
-		$mi['codec'] = self::computeCodec($mi);
-		if (stripos($mi['bitdepth'], "10 bit") !== FALSE) {
-			$mi['codec'] .= " (10-bit)";
+		if ($inmi && $Log->hadBlankLine) { // need to close mi block?
+			$Log->sanitizedLog = $output[$outputblock];
+			$output[$outputblock] = $Log->addHTML();
+			$this->logs[$logcount] = $Log; // store current $Log object in array
 		}
 		
+		returnOutput:
+		$this->output = str_replace("\n", "<br />\n", trim(implode("", $output)));
+	}
+
+	
+	/**
+	 * parse "property : value" pairs, load data into object
+	 * @param string $line
+	 * @return string
+	*/ 
+	protected function parseProperties($line) {
+		$array = explode(":", $line, 2);
+		$property = strtolower(trim($array[0]));
+		$property = preg_replace("#/string$#", "", $property);
+		$value = trim($array[1]);
+		
+		if (strtoupper($array[0]) == $array[0]) {
+			// ignore ALL CAPS tags, as set by mkvmerge 7
+			$property = "";
+		}
+		
+		if ($this->currentSection === "general") {
+			switch ($property) {
+				case "complete name":
+				case "completename":
+					$this->filename = self::stripPath($value);
+					$line = "Complete name : " . $this->filename;
+					break;
+				case "format":
+					$this->generalformat = $value;
+					break;
+				case "duration":
+					$this->duration = $value;
+					break;
+				case "file size":
+				case "filesize":
+					$this->filesize = $value;
+					break;
+			}
+		} else if (stripos($this->currentSection, "video") > -1) {
+			switch ($property) {
+				case "format":
+					$this->videoformat = $value;
+					break;
+				case "format version":
+				case "format_version":
+					$this->videoformatversion = $value;
+					break;
+				case "codec id":
+				case "codecid":
+					$this->codec = strtolower($value);
+					break;
+				case "width":
+					$this->width = self::parseSize($value);
+					break;
+				case "height":
+					$this->height = self::parseSize($value);
+					break;
+				case "writing library":
+				case "encoded_library":
+					$this->writinglibrary = $value;
+					break;
+				case "frame rate mode":
+				case "framerate_mode":
+					$this->frameratemode = $value;
+					break;
+				case "frame rate":
+				case "framerate":
+					// if variable this becomes Original frame rate
+					$this->framerate = $value;
+					break;
+				case "display aspect ratio":
+				case "displayaspectratio":
+					$this->aspectratio = str_replace("/", ":", $value); // mediainfo sometimes uses / instead of :
+					break;
+				case "bit rate":
+				case "bitrate":
+					$this->bitrate = $value;
+					break;
+				case "bit rate mode":
+				case "bitrate_mode":
+					$this->bitratemode = $value;
+					break;
+				case "nominal bit rate":
+				case "bitrate_nominal":
+					$this->nominalbitrate = $value;
+					break;
+				case "bits/(pixel*frame)":
+				case "bits-(pixel*frame)":
+					$this->bpp = $value;
+					break;
+				case "bit depth":
+				case "bitdepth":
+					$this->bitdepth = $value;
+					break;
+				case "encoding settings":
+					$this->encodingsettings = $value;
+					break;
+			}
+		} else if (stripos($this->currentSection, "audio") > -1) {
+			switch ($property) {
+				case "format":
+					$this->audio[$this->audionum]['format'] = $value;
+					break;
+				case "bit rate":
+				case "bitrate":
+					$this->audio[$this->audionum]['bitrate'] = $value;
+					break;
+				case "channel(s)":
+					$this->audio[$this->audionum]['channels'] = $value;
+					break;
+				case "title":
+					$this->audio[$this->audionum]['title'] = $value;
+					break;
+				case "language":
+					$this->audio[$this->audionum]['lang'] = $value;
+					break;
+				case "format profile":
+				case "format_profile":
+					$this->audio[$this->audionum]['profile'] = $value;
+					break;
+			}
+		}
+		// not making use of subtitles info yet
+		/* else if (stripos($section, "text") > -1) {
+			switch ($property) {
+				case "language":
+				$misubs[] = $value;
+			}
+		}
+		*/
+		
+		return $line;
+	}
+	
+	
+	/**
+	 * compute mediainfo specs and add HTML
+	 * @return string HTML
+	*/
+	protected function addHTML() {
+		
+		$this->codeccomputed = $this::computeCodec();
+		
 		$miaudio = array();
-		for ($i=1; $i < $audionum+1; $i++) {
-			if (strtolower($mi['audioformat'][$i]) === "mpeg audio") {
-				switch (strtolower($mi['audioprofile'][$i])) {
+		for ($i=1; $i < count($this->audio)+1; $i++) {
+			if (strtolower($this->audio[$i]['format']) === "mpeg audio") {
+				switch (strtolower($this->audio[$i]['profile'])) {
 					case "layer 3":
-						$mi['audioformat'][$i] = "MP3";
+						$this->audio[$i]['format'] = "MP3";
 						break;
 					case "layer 2":	
-						$mi['audioformat'][$i] = "MP2";
+						$this->audio[$i]['format'] = "MP2";
 						break;
 					case "layer 1":
-						$mi['audioformat'][$i] = "MP1";
+						$this->audio[$i]['format'] = "MP1";
 						break;
 				}
 			}
 			
-			$chans = $mi['audiochannels'][$i];
 			$chansreplace = array(
 				' '	 => '',
 				'channels'	 => 'ch',
@@ -280,89 +285,142 @@ class miparse {
 				'1ch'	 => '1.0ch',
 				'7ch'	 => '6.1ch',
 				'6ch'	 => '5.1ch',
-				'2ch'	 => '2.0ch',
+				'2ch'	 => '2.0ch'
 			);
-			$chans = str_ireplace(array_keys($chansreplace), $chansreplace, $chans);
+			$chans = str_ireplace(array_keys($chansreplace), $chansreplace, $this->audio[$i]['channels']);
 			
 			$result =
-				$mi['audiolang'][$i]
+				$this->audio[$i]['lang']
 				. " " . $chans
-				. " " . $mi['audioformat'][$i];
-			if ($mi['audiobitrate'][$i]) {
-				$result .= " @ " . $mi['audiobitrate'][$i];
+				. " " . $this->audio[$i]['format'];
+			if ($this->audio[$i]['bitrate']) {
+				$result .= " @ " . $this->audio[$i]['bitrate'];
 			}
-			if ($mi['audiotitle'][$i]) {
-				$result .= " (" . $mi['audiotitle'][$i] . ")";
+			if ($this->audio[$i]['title']
+				&& (stripos($this->filename, $this->audio[$i]['title']) === FALSE) ) { // ignore audio track title if it contains filename
+				$result .= " (" . $this->audio[$i]['title'] . ")";
 			}
 			$miaudio[] = $result;
 		}
-		
-		if (strtolower($mi['frameratemode']) != "constant" && $mi['frameratemode']) {
-			$mi['framerate'] = $mi['frameratemode'];
+
+		if (strtolower($this->frameratemode) != "constant" && $this->frameratemode) {
+			$this->framerate = $this->frameratemode;
 		}
 		
-		// sanitize input! -----------------------------------
-		self::sanitizeHTML($mi);
-		self::sanitizeHTML($miaudio);
-		// ---------------------------------------------------
-		
-		if (!$mi['bitrate']) {
-			if (strtolower($mi['bitratemode']) === "variable") {
-				$mi['bitrate'] = "Variable";
+		if (!$this->bitrate) {
+			if (strtolower($this->bitratemode) === "variable") {
+				$this->bitrate = "Variable";
 			} else {
-				$mi['bitrate'] = "<i>" . $mi['nominalbitrate'] . "</i>";
+				$this->bitrate = $this->nominalbitrate;
+				$italicBitrate = TRUE;
 			}
 		}
-
-		$midiv_start = "<div><a href='#' onclick='javascript:toggleDisplay(this.nextSibling); return false;'>" . $mi['filename'] . "</a><div class='mediainfo' style='display:none;'>";
+		
+		// begin building HTML //
+		$midiv_start = "<div><a href='#' onclick='javascript:toggleDisplay(this.nextSibling); return false;'>"
+		. self::sanitizeHTML($this->filename)
+		. "</a><div class='mediainfo' style='display:none;'>";
 		$midiv_end = "</div>";
 
 		$table = '<table class="mediainfo"><tbody><tr><td>'
 		. '<table class="nobr"><caption>General</caption><tbody>'
-		. '<tr><td>Container:&nbsp;&nbsp;</td><td>'. $mi['generalformat']
-		. '</td></tr><tr><td>Runtime:&nbsp;</td><td>' . $mi['duration']
-		. '</td></tr><tr><td>Size:&nbsp;</td><td>' . $mi['filesize']
+		. '<tr><td>Container:&nbsp;&nbsp;</td><td>'. self::sanitizeHTML($this->generalformat)
+		. '</td></tr><tr><td>Runtime:&nbsp;</td><td>' . self::sanitizeHTML($this->duration)
+		. '</td></tr><tr><td>Size:&nbsp;</td><td>' . self::sanitizeHTML($this->filesize)
 		. '</td></tr></tbody></table></td>'
 		. '<td><table class="nobr"><caption>Video</caption><tbody>'
-		. '<tr><td>Codec:&nbsp;</td><td>' . $mi['codec']
-		. '</td></tr><tr><td>Resolution:&nbsp;</td><td>' . $mi['width'] . 'x' . $mi['height'] . "&nbsp;" . self::displayDimensions($mi)
-		. '</td></tr><tr><td>Aspect&nbsp;ratio:&nbsp;&nbsp;</td><td>' . $mi['aspectratio']
-		. '</td></tr><tr><td>Frame&nbsp;rate:&nbsp;</td><td>' . $mi['framerate']
-		. '</td></tr><tr><td>Bit&nbsp;rate:&nbsp;</td><td>' . $mi['bitrate']
-		. '</td></tr><tr><td>BPP:&nbsp;</td><td>' . $mi['bpp']
+		. '<tr><td>Codec:&nbsp;</td><td>' . self::sanitizeHTML($this->codeccomputed);
+		
+		if (stripos($this->bitdepth, "10 bit") !== FALSE) {
+			$table .= " (10-bit)";
+		}
+		
+		$table .= '</td></tr><tr><td>Resolution:&nbsp;</td><td>' . self::sanitizeHTML($this->width) . 'x' . self::sanitizeHTML($this->height) . "&nbsp;" . self::displayDimensions()
+		. '</td></tr><tr><td>Aspect&nbsp;ratio:&nbsp;&nbsp;</td><td>' . self::sanitizeHTML($this->aspectratio)
+		. '</td></tr><tr><td>Frame&nbsp;rate:&nbsp;</td><td>' . self::sanitizeHTML($this->framerate)
+		. '</td></tr><tr><td>Bit&nbsp;rate:&nbsp;</td><td>'; 
+		
+		if ($italicBitrate === TRUE) {
+			$table .= "<em>" . self::sanitizeHTML($this->bitrate) . "</em>";
+		} else {
+			$table .= self::sanitizeHTML($this->bitrate);
+		}
+		
+		$table .= '</td></tr><tr><td>BPP:&nbsp;</td><td>' . self::sanitizeHTML($this->bpp)
 		. '</td></tr></tbody></table></td><td>'
 		. '<table><caption>Audio</caption><tbody>';
-		
+
 		for ($i=0; $i < count($miaudio); $i++) {
 			$table .= '<tr><td>#' . intval($i+1) .': &nbsp;</td><td>'
-			. $miaudio[$i] . '</td></tr>';
+			. self::sanitizeHTML($miaudio[$i]) . '</td></tr>';
 		}
-		$table .= '</tbody></table></td></tr></tbody></table>';
+
+		$table .= '</tbody></table></td></tr>';
 		
-		return $midiv_start . $string . $midiv_end . $table;
+		if ($this->checkEncodingSettings && $this->encodingsettings) {
+			$poorSpecs = $this->checkEncodingSettings();
+			if ($poorSpecs) {
+				$table .= '<tr><td colspan="3">
+				Encoding specs checks: '
+				. self::sanitizeHTML($poorSpecs)
+				. '</td></tr>';
+			}
+		}
+		
+		$table .= '</tbody></table>';
+		
+		return $midiv_start . $this->sanitizedLog . $midiv_end . $table;
 	}
 
 	/**
-	 * calculates approximate display dimensions of anamorphic video
-	 * @param array $mi pre-sanitized
-	 * @return str HTML or null
+	 * check video encoding settings
+	 * @return string or null
 	*/
-	private static function displayDimensions($mi) {
-		$w = intval($mi['width']);
-		$h = intval($mi['height']);
-		if ($h < 1 || $w < 1 || !$mi['aspectratio']) {
+	protected function checkEncodingSettings() {
+		$poorSpecs = array();
+		$settings = explode("/", $this->encodingsettings);
+		
+		foreach($settings as $str) {
+			$arr = explode("=", $str);
+			$property = strtolower( trim($arr[0]) );
+			$value = trim( $arr[1] );
+			
+			switch ($property) {
+				case "rc_lookahead":
+					if ($value < 60) {
+						$poorSpecs[] = "rc_lookahead=".$value." (<60)";
+					}
+					break;
+				
+				case "subme":
+					if ($value < 9) {
+						$poorSpecs[] = "subme=".$value." (<9)";
+					}
+					break;
+			}
+		}
+		
+		return implode(". ", $poorSpecs);	
+	}
+	
+	/**
+	 * calculates approximate display dimensions of anamorphic video
+	 * @return string HTML or null
+	*/
+	private function displayDimensions() {
+		$w = intval($this->width);
+		$h = intval($this->height);
+		if ($h < 1 || $w < 1 || !$this->aspectratio) {
 			return; // bad input
 		}
 		
-		$ar = str_replace("/", ":", $mi['aspectratio']); // mediainfo sometimes uses / instead of :
-		
-		$ar = explode(":", $ar);
+		$ar = explode(":", $this->aspectratio);
 		if (count($ar) > 1) {
 			$ar = $ar[0] / $ar[1]; // e.g. 4:3 becomes 1.333...
 		} else {
 			$ar = $ar[0];
 		}
-
+		
 		$calcw = intval($h * $ar);
 		$calch = intval($w / $ar);
 		$output = $calcw . "x" . $h;
@@ -388,31 +446,30 @@ class miparse {
 
 	/**
 	 * Removes unneeded data from $string when calculating width and height in pixels
-	 * @param str $string
-	 * @return str
+	 * @param string $string
+	 * @return string
 	*/
-	private static function parseSize($string) {
+	private function parseSize($string) {
 		return str_replace(array('pixels', ' '), null, $string);
 	}
 
 	/**
 	 * Calculates the codec of the input mediainfo file
-	 * @param array $mi
-	 * @return str codec
+	 * @return string
 	*/
-	private static function computeCodec(&$mi) {
-		switch (strtolower($mi['videoformat'])) {
+	private function computeCodec() {
+		switch (strtolower($this->videoformat)) {
 			case "mpeg video":
-				switch (strtolower($mi['videoformatversion'])) {
+				switch (strtolower($this->videoformatversion)) {
 					case "version 2":
 						return "MPEG-2";
 					case "version 1":
 						return "MPEG-1";
 				}
-				return $mi['videoformat'];
+				return $this->videoformat;
 		}
 		
-		switch (strtolower($mi['codec'])) {
+		switch (strtolower($this->codec)) {
 			case "div3":
 				return "DivX 3";
 			case "divx":
@@ -424,23 +481,23 @@ class miparse {
 				return "x264";
 		}
 		
-		$chk = strtolower($mi['codec']);
-		$wl = strtolower($mi['writinglibrary']);
+		$chk = strtolower($this->codec);
+		$wl = strtolower($this->writinglibrary);
 		if (($chk === "v_mpeg4/iso/avc" || $chk === "avc1") && strpos($wl, "x264 core") === FALSE) {
 			return "H264";
 		} else if (($chk === "v_mpeg4/iso/avc" || $chk === "avc1") && strpos($wl, "x264 core") > -1)  {
 			return "x264";
-		} else if (strtolower($mi['videoformat']) === "avc" && strpos($wl, "x264 core") === FALSE) {
+		} else if (strtolower($this->videoformat) === "avc" && strpos($wl, "x264 core") === FALSE) {
 			return "H264";
 		}
 	}
 
 	/**
 	 * Removes file path from $string
-	 * @param str $string
-	 * @return str
+	 * @param string $string
+	 * @return string
 	*/
-	private static function stripPath($string) {
+	private function stripPath($string) {
 		$string = str_replace("\\", "/", $string);
 		$path_parts = pathinfo($string);
 		return $path_parts['basename'];
@@ -452,16 +509,16 @@ class miparse {
 	 * @param mixed $value str or array
 	 * @return mixed sanitized output
 	*/
-	private static function sanitizeHTML (&$value) {
-		
+	private function sanitizeHTML (&$value) {
+	
 		if (is_array($value)){
 			foreach ($value as $k => $v){
 				$value[$k] = self::sanitizeHTML($v);
 			}
 		}
 		
-		return htmlentities((string) $value, ENT_QUOTES, 'ISO-8859-1');
+		return htmlentities((string) $value, ENT_QUOTES, $this->characterSet);
 	}
 
-}
-?>
+} // end class
+
